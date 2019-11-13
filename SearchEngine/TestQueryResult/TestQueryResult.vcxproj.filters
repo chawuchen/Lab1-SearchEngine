@@ -18,37 +18,11 @@
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Csv.cpp">
+    <ClCompile Include="..\SearchEngine\Csv.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="String_convert.cpp">
+    <ClCompile Include="..\SearchEngine\String_convert.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Query.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Documents.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Query_result.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Csv.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="String_convert.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Query.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Documents.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Query_result.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

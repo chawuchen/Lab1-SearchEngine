@@ -10,6 +10,7 @@ void Csv::read(const string &file_name, int cols, vector<vector<string>> &vec) {
 
 	string s;
 	vector<string> lines;
+	getline(infile, s);
 	while (getline(infile, s)) lines.push_back(std::move(s));
 	int n = lines.size();
 
@@ -19,7 +20,8 @@ void Csv::read(const string &file_name, int cols, vector<vector<string>> &vec) {
 		vector<string> v;
 		auto line_begin = line.cbegin(), line_end = line.cend(), b = line_begin, e = line_begin;
 		for (int j = 1; j < cols; ++j) {	// cols - 1 ´Î
-			e = find(b, line_end, ',');
+			if (*b == '"') e = line_begin + line.find("\",",(size_t)(b - line_begin));
+			else e = find(b, line_end, ',');
 			v.emplace_back(b, e);
 			b = e + 1;
 		}

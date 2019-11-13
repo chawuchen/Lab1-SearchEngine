@@ -1,4 +1,4 @@
-#include "Tf_idf_calculator.h"
+#include "Documents.h"
 #include "String_convert.h"
 #include <algorithm>
 #include <omp.h>
@@ -15,15 +15,17 @@ constexpr char *const USER_DICT_PATH = "../dict/user.dict.utf8";
 constexpr char *const IDF_PATH = "../dict/idf.utf8";
 constexpr char *const STOP_WORD_PATH = "../dict/stop_words.utf8";
  
-std::unordered_set<std::string> Tf_idf_calculator::stop_words;
+constexpr int Documents::TITLE_FACTOR;
 
-cppjieba::Jieba Tf_idf_calculator::jieba(DICT_PATH,
-										 HMM_PATH,
-										 USER_DICT_PATH,
-										 IDF_PATH,
-										 STOP_WORD_PATH);
+std::unordered_set<std::string> Documents::stop_words;
+
+cppjieba::Jieba Documents::jieba(DICT_PATH,
+								 HMM_PATH,
+								 USER_DICT_PATH,
+								 IDF_PATH,
+								 STOP_WORD_PATH);
  
-void Tf_idf_calculator::set_stop_words(const std::string &stop_words_file) {
+void Documents::set_stop_words(const std::string &stop_words_file) {
 	// 不包括空白字符
 	ifstream infile(stop_words_file);
 	if (infile.fail()) 
@@ -40,7 +42,7 @@ void Tf_idf_calculator::set_stop_words(const std::string &stop_words_file) {
 #endif
 }
 
-vector<string> Tf_idf_calculator::get_segmentation(const string &sentence) {
+vector<string> Documents::get_segmentation(const string &sentence) {
 	// 使用 jieba 提取关键词
 		/*const size_t topk = 20;
 		vector<cppjieba::KeywordExtractor::Word> keywordres;
@@ -60,12 +62,16 @@ vector<string> Tf_idf_calculator::get_segmentation(const string &sentence) {
 	return words_all;
 }
 
-void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
+void Documents::calculate(vector<vector<string>> &&vec) {
 	int n = vec.size();
-	doc_names.resize(n);
 	tf.resize(n);
 	tf_idf.resize(n);
-
+	nrm2.resize(n);
+	doc_names.resize(n);
+	doc_titles.resize(n);
+	doc_urls.resize(n);
+	doc_contents.resize(n);
+	
 	// 统计 tf df
 #ifdef DEBUG_PRINT
 	std::cout << "\treading documents   0%%" << flush;
@@ -76,12 +82,18 @@ void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
 		const string &doc_id = vec[i][0];
+		const string &url = vec[i][1];
 		const string &title = vec[i][2];
 		const string &content = vec[i][3];
+
 		vector<string> words_all = get_segmentation(content);
+		vector<string> words_title = get_segmentation(title);
+		vector<string> words_url = get_segmentation(url);
+		copy(words_url.begin(), words_url.end(), back_inserter(words_all));
+		for (int j = 0; j < TITLE_FACTOR; ++j)
+			copy(words_title.begin(), words_title.end(), back_inserter(words_all));
 
 		// 统计 tf df
-		doc_names[i] = doc_id;
 		for (const string &word : words_all) {
 			if (is_not_stop_word(word)) {
 				if (++tf[i][word] == 1)		// 计算 tf
@@ -89,6 +101,12 @@ void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
 					++df[word].second;		// 计算 df
 			}
 		}	
+
+		// 记录文档信息，不需要的可以注释
+		doc_names[i] = std::move(vec[i][0]);
+		doc_titles[i] = std::move(vec[i][2]);
+		doc_urls[i] = std::move(vec[i][1]);
+		doc_contents[i] = std::move(vec[i][3]);
 #ifdef DEBUG_PRINT
 		#pragma omp critical
 		++cnt_debug;
@@ -120,6 +138,7 @@ void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
 	for (int i = 0; i < n; ++i) {
 		vector<int> &indx = tf_idf[i].first;
 		vector<double> &x = tf_idf[i].second;
+		double dsum = 0;
 		for (auto &pair : tf[i]) {
 			const auto &p = df[pair.first];
 			int word_idx = p.first;
@@ -128,7 +147,9 @@ void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
 			double word_tf_idf = (1 + log(word_tf)) * log(n / word_df);
 			indx.push_back(word_idx);
 			x.push_back(word_tf_idf);
+			dsum += word_tf_idf * word_tf_idf;
 		}
+		nrm2[i] = sqrt(dsum);
 #ifdef DEBUG_PRINT
 #pragma omp critical
 		++cnt_debug;
@@ -146,4 +167,40 @@ void Tf_idf_calculator::calculate(const vector<vector<string>> &vec) {
 	std::cout << "   time: " 
 			  << omp_get_wtime() - begin_time << " s\n";
 #endif
+}
+
+ostream &Documents::print_doc_info(const string &doc_id, int n /*= 12*/, ostream &os /*= std::cout*/) {
+	auto it = find(doc_names.begin(), doc_names.end(), doc_id);
+	if (it == doc_names.end()) {
+		os << "cannot find " << doc_id << endl;
+	} else {
+		int idx = it - doc_names.begin();
+		os << "url: " << doc_urls[idx] << "\n"
+			<< String_convert::utf8_to_string(doc_titles[idx]) << "\n"
+			<< String_convert::utf8_to_string(doc_contents[idx]) << "\n"
+			<< "-----------------------------------------------------------\n"
+			<< "tf-idf 信息：\n";
+
+		const auto &indx = tf_idf[idx].first;
+		const auto &x = tf_idf[idx].second;
+		vector<pair<double, int>> v;
+		for (int i = 0; i < x.size(); ++i) {
+			v.emplace_back(-x[i], indx[i]);
+		}
+		partial_sort(v.begin(), v.begin() + n, v.end());
+
+		auto print_word_info = [&](const pair<double, int> &p)
+		{
+			string word; int dfv = -1;
+			for (const auto &dfp : df)
+				if (dfp.second.first == p.second)
+					{ word = dfp.first; dfv = dfp.second.second; }
+			os	<< String_convert::utf8_to_string(word) << "\ttf-idf: " << -p.first 
+				<< "\t\ttf: " << tf[idx][word] << "\t\tdf: " << dfv << "\n";
+		};
+
+		for_each(v.begin(), v.begin() + n, print_word_info);
+	}
+	os << flush;
+	return os;
 }
