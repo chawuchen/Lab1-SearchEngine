@@ -18,6 +18,8 @@ public:
 					{ query_str = std::move(str); return do_query(n); }
 
 private:
+	static constexpr double TITLE_SIMILARITY_FACTOR = 1;		// tfidf的cos值系数为1，和这个线性相加
+
 	Query_result do_query(int n);	// 进行查询工作，按顺序调用以下函数
 
 	void clean_member();					// 清理成员，如果以前进行过查询
@@ -25,6 +27,8 @@ private:
 	void calculate_tfidf_sparse_vec();		// 根据 query_words 设置 query_tfidf_sparse_vec 查询向量
 	void sparse_vec_to_full_storage();		// 将 query_tfidf_sparse_vec 转换为完整存储方便计算，并计算nrm2
 	void calculate_query_docs_cos();		// 根据 query_tfidf_vec 和 docs 计算所有角度
+	void calculate_title_similarity();		// 根据集合交集判断相似度
+	void calculate_doc_score();				// 根据以上各种得分计算综合得分
 	void sort_first_n_docs(int n);			// 排序前 n 篇相关文档
 
 	double get_cos(const Documents::sparse_vector_type &vec1, 
@@ -41,6 +45,8 @@ private:
 	Documents::sparse_vector_type query_tfidf_sparse_vec;
 	std::unique_ptr<double[]> query_tfidf_full_vec;
 	double query_tfidf_full_vec_nrm2 = 0;
-	std::vector<std::pair<int, double>> query_doc_cos;	// doc_id，doc_cos_value 的 pair
+	std::vector<double> query_doc_cos;		// doc_id，doc_cos_value 的 pair
+	std::vector<double> query_title_set_similarity;	// doc_id，doc_cos_value 的 pair
+	std::vector<std::pair<int, double>> query_doc_score;	// doc_id，得分的 pair
 };
 

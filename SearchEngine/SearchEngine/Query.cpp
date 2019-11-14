@@ -9,11 +9,13 @@ Query_result Query::do_query(int n) {
 	calculate_tfidf_sparse_vec();
 	sparse_vec_to_full_storage();
 	calculate_query_docs_cos();
+	calculate_title_similarity();
+	calculate_doc_score();
 	sort_first_n_docs(n);
 
 	vector<int> vec;
-	auto ce = query_doc_cos.begin() + min((size_t)n, query_doc_cos.size());
-	for (auto it = query_doc_cos.cbegin(); it != ce; ++it) 
+	auto ce = query_doc_score.begin() + min((size_t)n, query_doc_score.size());
+	for (auto it = query_doc_score.cbegin(); it != ce; ++it) 
 		vec.push_back(it->first);
 	return Query_result(std::move(vec), docs);
 }
@@ -23,7 +25,7 @@ void Query::clean_member() {
 	query_tfidf_sparse_vec.first.clear();
 	query_tfidf_sparse_vec.second.clear();
 	query_tfidf_full_vec.reset();
-	query_doc_cos.clear();
+	query_doc_score.clear();
 }
 
 void Query::segment() {
@@ -77,14 +79,38 @@ void Query::calculate_query_docs_cos() {
 	for (int i = 0; i < n; ++i) {
 		double cos_value = get_cos(docs.get_doc_sparse_tfidf_vec(i),
 								   docs.get_doc_sparse_tfidf_vec_nrm2(i));
-		query_doc_cos[i] = { i, cos_value };
+		query_doc_cos[i] = cos_value;
+	}
+}
+
+void Query::calculate_title_similarity() {
+	int n = docs.get_docs_num();
+	query_title_set_similarity.resize(n);
+	#pragma omp parallel for
+	for (int i = 0; i < n; ++i) {
+		int mm = 0;
+		for (const auto &p : query_words)
+			if (docs.title_word_set[i].find(p.first) != docs.title_word_set[i].end())
+				++mm;
+		query_title_set_similarity[i] = (double)mm / query_words.size();
+	}
+}
+
+void Query::calculate_doc_score() {
+	int n = docs.get_docs_num();
+	query_doc_score.resize(n);
+	#pragma omp parallel for
+	for (int i = 0; i < n; ++i) {
+		double score = query_doc_cos[i] +
+					   TITLE_SIMILARITY_FACTOR * query_title_set_similarity[i];
+		query_doc_score[i] = { i, score };
 	}
 }
 
 void Query::sort_first_n_docs(int n) {
-	using ty = decltype(query_doc_cos)::const_reference;
+	using ty = decltype(query_doc_score)::const_reference;
 	auto sort_func = [](ty a, ty b) { return a.second > b.second; };
-	partial_sort(query_doc_cos.begin(), query_doc_cos.begin() + n, query_doc_cos.end(), sort_func);
+	partial_sort(query_doc_score.begin(), query_doc_score.begin() + n, query_doc_score.end(), sort_func);
 }
 
 double Query::get_cos(const Documents::sparse_vector_type &vec1,
@@ -105,3 +131,5 @@ double Query::get_cos(const Documents::sparse_vector_type &vec_doc,
 							 &vec_doc.first[0], query_tfidf_full_vec.get());
 	return dot / (vec_doc_nrm2 * query_tfidf_full_vec_nrm2);
 }
+
+constexpr double Query::TITLE_SIMILARITY_FACTOR;

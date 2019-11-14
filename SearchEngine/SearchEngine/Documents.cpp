@@ -81,6 +81,7 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 	tf.resize(n);
 	tf_idf.resize(n);
 	nrm2.resize(n);
+	title_word_set.resize(n);
 	doc_names.resize(n);
 	doc_titles.resize(n);
 	doc_urls.resize(n);
@@ -104,6 +105,7 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 		vector<string> words_title = get_segmentation(title);
 		vector<string> words_url = get_segmentation(url);
 		copy(words_url.begin(), words_url.end(), back_inserter(words_all));
+		
 
 		// 统计 tf df
 		for (const string &word : words_all) {
@@ -121,6 +123,9 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 				tf[i][word] += TITLE_FACTOR;
 			}
 		}
+		copy(make_move_iterator(words_title.begin()), 
+			 make_move_iterator(words_title.end()), 
+			 inserter(title_word_set[i], title_word_set[i].begin()));
 
 		// 记录文档信息，不需要的可以注释
 		doc_names[i] = std::move(vec[i][0]);
