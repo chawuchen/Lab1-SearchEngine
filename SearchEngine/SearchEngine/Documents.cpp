@@ -62,6 +62,20 @@ vector<string> Documents::get_segmentation(const string &sentence) {
 	return words_all;
 }
 
+string Documents::remove_useless(const string &str) {
+	istringstream iss(String_convert::utf8_to_string(str));
+	string w, ret;
+	while (iss >> w) {
+		if (w.size() > 20) {
+			ret += " " + w;
+			//cout << "add " << String_convert::utf8_to_string(w) << endl;
+		} else {
+			//cout << "remove " << String_convert::utf8_to_string(w) << endl;
+		}
+	}
+	return String_convert::string_to_utf8(str);
+}
+
 void Documents::calculate(vector<vector<string>> &&vec) {
 	int n = vec.size();
 	tf.resize(n);
@@ -86,12 +100,10 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 		const string &title = vec[i][2];
 		const string &content = vec[i][3];
 
-		vector<string> words_all = get_segmentation(content);
+		vector<string> words_all = get_segmentation(remove_useless(content));
 		vector<string> words_title = get_segmentation(title);
 		vector<string> words_url = get_segmentation(url);
 		copy(words_url.begin(), words_url.end(), back_inserter(words_all));
-		for (int j = 0; j < TITLE_FACTOR; ++j)
-			copy(words_title.begin(), words_title.end(), back_inserter(words_all));
 
 		// 统计 tf df
 		for (const string &word : words_all) {
@@ -101,6 +113,14 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 					++df[word].second;		// 计算 df
 			}
 		}	
+		for (const string &word : words_title) {
+			if (is_not_stop_word(word)) {
+				if (tf[i][word] == 0)		// 计算 tf
+					#pragma omp critical
+					++df[word].second;		// 计算 df
+				tf[i][word] += TITLE_FACTOR;
+			}
+		}
 
 		// 记录文档信息，不需要的可以注释
 		doc_names[i] = std::move(vec[i][0]);
