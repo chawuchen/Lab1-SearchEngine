@@ -19,6 +19,7 @@ public:
 
 private:
 	static constexpr double TITLE_SIMILARITY_FACTOR = 1;		// tfidf的cos值系数为1，和这个线性相加
+	static constexpr double TFIDF_ERROR_THRESHOULD = 0.55;		// value 低于这个值的超过 n/2 则进行其他处理
 
 	Query_result do_query(int n);	// 进行查询工作，按顺序调用以下函数
 
@@ -48,5 +49,8 @@ private:
 	std::vector<double> query_doc_cos;		// doc_id，doc_cos_value 的 pair
 	std::vector<double> query_title_set_similarity;	// doc_id，doc_cos_value 的 pair
 	std::vector<std::pair<int, double>> query_doc_score;	// doc_id，得分的 pair
+
+	// 特殊处理
+	void try_query_match(std::list<int> &rank_vec, int nn);
 };
 

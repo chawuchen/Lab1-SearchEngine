@@ -1,6 +1,6 @@
 #include "Query.h"
 #include <mkl.h>
-
+#include "String_convert.h"
 using namespace std;
 
 Query_result Query::do_query(int n) {
@@ -13,10 +13,22 @@ Query_result Query::do_query(int n) {
 	calculate_doc_score();
 	sort_first_n_docs(n);
 
-	vector<int> vec;
+	list<int> vec;
 	auto ce = query_doc_score.begin() + min((size_t)n, query_doc_score.size());
-	for (auto it = query_doc_score.cbegin(); it != ce; ++it) 
+	//cout << String_convert::utf8_to_string(query_str) << ":";
+	int cnt = 0;
+	for (auto it = query_doc_score.cbegin(); it != ce; ++it) {
 		vec.push_back(it->first);
+		if (it->second < TFIDF_ERROR_THRESHOULD) ++cnt;
+	}
+	if (cnt >= (n >> 1)) {		// value 失效了，应该进行其他处理
+		//cout << "额外查找：" << String_convert::utf8_to_string(query_str) << endl;
+		try_query_match(vec, n);
+	}
+	//if (set<int>(vec.begin(), vec.end()).size() != 20) {
+	//	cout << String_convert::utf8_to_string(query_str) << endl;
+	//	cin.get();
+	//}
 	return Query_result(std::move(vec), docs);
 }
 
@@ -29,6 +41,7 @@ void Query::clean_member() {
 }
 
 void Query::segment() {
+	transform(query_str.begin(), query_str.end(), query_str.begin(), tolower);
 	vector<string> words_all;
 	docs.jieba.Cut(query_str, words_all);
 	for_each(words_all.begin(), words_all.end(), [this](const string &word)
@@ -93,6 +106,14 @@ void Query::calculate_title_similarity() {
 			if (docs.title_word_set[i].find(p.first) != docs.title_word_set[i].end())
 				++mm;
 		query_title_set_similarity[i] = (double)mm / query_words.size();
+		/*for (const auto &p : query_words) {
+			auto it = docs.tf[i].find(p.first);
+			if (it == docs.tf[i].end()) {
+				query_title_set_similarity[i] -= 10;
+			} else {
+				if (it->second < 2)query_title_set_similarity[i] -= 10;
+			}
+		}*/
 	}
 }
 
@@ -101,7 +122,7 @@ void Query::calculate_doc_score() {
 	query_doc_score.resize(n);
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
-		double score = query_doc_cos[i] +
+		double score = query_doc_cos[i] + 
 					   TITLE_SIMILARITY_FACTOR * query_title_set_similarity[i];
 		query_doc_score[i] = { i, score };
 	}
@@ -130,6 +151,33 @@ double Query::get_cos(const Documents::sparse_vector_type &vec_doc,
 	double dot = cblas_ddoti(vec_doc.first.size(), &vec_doc.second[0], 
 							 &vec_doc.first[0], query_tfidf_full_vec.get());
 	return dot / (vec_doc_nrm2 * query_tfidf_full_vec_nrm2);
+}
+
+void Query::try_query_match(list<int> &rank_vec, int nn) {
+	int n = docs.get_docs_num();
+	vector<pair<double, int>> v;
+	#pragma omp parallel for
+	for (int i = 0; i < n; ++i) {
+		if (docs.doc_titles[i].find(query_str) != string::npos ||
+			docs.doc_contents[i].find(query_str) != string::npos) {
+				#pragma omp critical
+				v.emplace_back(-query_doc_score[i].second, i);
+		}
+	}
+	sort(v.begin(), v.end());
+	if (v.size() >= nn) {
+		rank_vec.clear();
+		for (int i = 0; i < nn; ++i) rank_vec.push_back(v[i].second);
+	} else {
+		list<int> tmp;
+		for (const auto &p : v) tmp.push_back(p.second);
+		auto it = rank_vec.begin();
+		for (int i = v.size(); i < nn; ++i) {
+			while (find(tmp.begin(), tmp.end(), *it) != tmp.end()) ++it;
+			tmp.push_back(*it);
+		}
+		rank_vec = std::move(tmp);
+	}
 }
 
 constexpr double Query::TITLE_SIMILARITY_FACTOR;

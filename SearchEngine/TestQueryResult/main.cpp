@@ -44,6 +44,9 @@ int main() {
 		int errs = errorvec.size();
 		err_num += errorvec.size();
 		hit_num += (int)my_doc_set_20.size() - errs;
+		//if ((int)my_doc_set_20.size() != 20) {
+		//	printf("查询 %4s 错误！！！\n", p.first.c_str()); cin.get();
+		//}
 		printf("查询 %4s 错误率 %2d/20\t%-20s  %s\n", p.first.c_str(), errs, 
 			   string(errs, '*').c_str(), String_convert::utf8_to_string(m[p.first].first).c_str());
 		//cout << "错误搜出来的文档有：\n";

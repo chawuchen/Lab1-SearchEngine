@@ -11,10 +11,10 @@ class Query_result {
 public:
 	std::ostream &print_csv(std::ostream &os, const std::string &query_id);
 private:
-	Query_result(std::vector<int> &&vec, const Documents &docs) : 
+	Query_result(std::list<int> &&vec, const Documents &docs) : 
 				docs_idx(std::move(vec)), docs(docs) {}
 	const Documents &docs;
-	std::vector<int> docs_idx;
+	std::list<int> docs_idx;
 };
 
 std::ostream &operator<<(std::ostream &os, const Query_result &result);

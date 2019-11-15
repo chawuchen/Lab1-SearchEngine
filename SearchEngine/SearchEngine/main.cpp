@@ -16,6 +16,10 @@ int main() {
 		cout << "reading csv ..." << endl;
 		vector<vector<string>> v;
 		Csv::read(DOCS_FILE, 4, v);
+		cout << "unique ..." << endl;
+		sort(v.begin(), v.end());
+		auto eit = unique(v.begin(), v.end());
+		v.erase(eit, v.end());
 
 		cout << "setting stop words ..." << endl;
 		docs.set_stop_words("../dict/stop_words.utf8");

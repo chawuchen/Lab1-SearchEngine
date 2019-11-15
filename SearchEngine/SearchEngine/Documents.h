@@ -23,7 +23,8 @@ public:
 	std::ostream &print_doc_info(const std::string &doc_id, int n = 12, std::ostream &os = std::cout);
 
 private:
-	static constexpr int TITLE_FACTOR = 50;
+	static constexpr int TITLE_FACTOR = 70;
+	static constexpr int URL_FACTOR = 3;
 	static std::unordered_set<std::string> stop_words;
 	static cppjieba::Jieba jieba;
 	std::vector<std::string> doc_names;					// 文档编号 -> 文档名，用 int 索引提高并行度
@@ -40,6 +41,6 @@ private:
 			{ return stop_words.find(s) == stop_words.cend(); }
 
 	static std::vector<std::string> get_segmentation(const std::string &sentence);
-	static std::string remove_useless(const std::string &str);
+	static std::string &remove_useless(std::string &str);
 };
 

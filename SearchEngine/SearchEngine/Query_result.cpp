@@ -12,6 +12,9 @@ std::ostream &operator<<(std::ostream &os, const Query_result &result) {
 }
 
 std::ostream &Query_result::print_csv(std::ostream &os, const std::string &query_id) {
+	//if (std::set<int>(docs_idx.begin(), docs_idx.end()).size() != 20) {
+	//	std::cerr << "err" << std::endl; std::cin.get();
+	//}
 	for (int id : docs_idx) {
 		os << query_id << "," << docs.doc_names[id] << "\n";
 	}

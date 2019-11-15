@@ -17,6 +17,8 @@ constexpr char *const STOP_WORD_PATH = "../dict/stop_words.utf8";
  
 constexpr int Documents::TITLE_FACTOR;
 
+constexpr int Documents::URL_FACTOR;
+
 std::unordered_set<std::string> Documents::stop_words;
 
 cppjieba::Jieba Documents::jieba(DICT_PATH,
@@ -57,12 +59,12 @@ vector<string> Documents::get_segmentation(const string &sentence) {
 	vector<string> words_all;
 	jieba.CutForSearch(sentence, words_all);
 	//cout << String_convert::utf8_to_string(limonp::Join
-	//		(words_all.begin(), words_all.end(), "/")) << endl;	
+	//		(words_content.begin(), words_content.end(), "/")) << endl;	
 
 	return words_all;
 }
 
-string Documents::remove_useless(const string &str) {
+string &Documents::remove_useless(string &str) {
 	istringstream iss(String_convert::utf8_to_string(str));
 	string w, ret;
 	while (iss >> w) {
@@ -73,10 +75,12 @@ string Documents::remove_useless(const string &str) {
 			//cout << "remove " << String_convert::utf8_to_string(w) << endl;
 		}
 	}
-	return String_convert::string_to_utf8(str);
+	return str = String_convert::string_to_utf8(ret);
 }
 
 void Documents::calculate(vector<vector<string>> &&vec) {
+	auto strlower = [](string &s) -> string &
+		{ transform(s.begin(), s.end(), s.begin(), tolower); return s; };
 	int n = vec.size();
 	tf.resize(n);
 	tf_idf.resize(n);
@@ -96,19 +100,18 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 #endif
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
-		const string &doc_id = vec[i][0];
-		const string &url = vec[i][1];
-		const string &title = vec[i][2];
-		const string &content = vec[i][3];
+		const string &doc_id = strlower(vec[i][0]);
+		const string &url = strlower(vec[i][1]);
+		const string &title = strlower(vec[i][2]);
+		string &content = strlower(vec[i][3]);
 
-		vector<string> words_all = get_segmentation(remove_useless(content));
+		vector<string> words_content = get_segmentation(content);
 		vector<string> words_title = get_segmentation(title);
 		vector<string> words_url = get_segmentation(url);
-		copy(words_url.begin(), words_url.end(), back_inserter(words_all));
 		
 
 		// 统计 tf df
-		for (const string &word : words_all) {
+		for (const string &word : words_content) {
 			if (is_not_stop_word(word)) {
 				if (++tf[i][word] == 1)		// 计算 tf
 					#pragma omp critical
@@ -120,7 +123,15 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 				if (tf[i][word] == 0)		// 计算 tf
 					#pragma omp critical
 					++df[word].second;		// 计算 df
-				tf[i][word] += TITLE_FACTOR;
+				tf[i][word] += TITLE_FACTOR * content.size() / title.size();
+			}
+		}
+		for (const string &word : words_url) {
+			if (word.size() > 2 && is_not_stop_word(word)) {
+				if (tf[i][word] == 0)		// 计算 tf
+					#pragma omp critical
+					++df[word].second;		// 计算 df
+				tf[i][word] += URL_FACTOR * content.size() / url.size();
 			}
 		}
 		copy(make_move_iterator(words_title.begin()), 
