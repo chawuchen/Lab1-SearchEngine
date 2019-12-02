@@ -63,7 +63,7 @@ void Documents::set_synonym(const std::string &synonym_file) {
 	}
 }
 
-void Documents::set_error_words(const std::string err_file) {
+void Documents::set_error_words(const std::string &err_file) {
 	ifstream infile(err_file);
 	if (infile.fail())
 		throw runtime_error("cannot open file " + err_file);
@@ -71,7 +71,7 @@ void Documents::set_error_words(const std::string err_file) {
 	copy(it, eof, inserter(error_words, error_words.begin()));
 }
 
-void Documents::set_learn(const std::string learn_file) {
+void Documents::set_learn(const std::string &learn_file) {
 	ifstream infile(learn_file);
 	if (infile.fail())
 		throw runtime_error("cannot open file " + learn_file);

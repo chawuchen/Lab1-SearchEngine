@@ -17,8 +17,8 @@ public:
 
 	static void set_stop_words(const std::string &stop_words_file);
 	static void set_synonym(const std::string &synonym_file);
-	static void set_error_words(const std::string err_file);
-	static void set_learn(const std::string learn_file);
+	static void set_error_words(const std::string &err_file);
+	static void set_learn(const std::string &learn_file);
 	void calculate(std::vector<std::vector<std::string>> &&doc_vec);	// 请使用右值参数节省内存
 	size_t get_docs_num() const { return doc_names.size(); }
 	const sparse_vector_type &get_doc_sparse_tfidf_vec(int doc_id) const { return tf_idf[doc_id]; }
