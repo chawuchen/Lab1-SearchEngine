@@ -11,24 +11,21 @@ Query_result Query::do_query(int n) {
 	calculate_query_docs_cos();
 	calculate_title_similarity();
 	calculate_doc_score();
-	sort_first_n_docs(n);
+	get_first_n_docs(n);
+	//sort_first_n_docs(n);
 
 	list<int> vec;
 	auto ce = query_doc_score.begin() + min((size_t)n, query_doc_score.size());
-	//cout << String_convert::utf8_to_string(query_str) << ":";
+
 	int cnt = 0;
 	for (auto it = query_doc_score.cbegin(); it != ce; ++it) {
 		vec.push_back(it->first);
 		if (it->second < TFIDF_ERROR_THRESHOULD) ++cnt;
 	}
 	if (cnt >= (n >> 1)) {		// value 失效了，应该进行其他处理
-		//cout << "额外查找：" << String_convert::utf8_to_string(query_str) << endl;
+		cout << "额外查找：" << String_convert::utf8_to_string(query_str) << endl;
 		try_query_match(vec, n);
 	}
-	//if (set<int>(vec.begin(), vec.end()).size() != 20) {
-	//	cout << String_convert::utf8_to_string(query_str) << endl;
-	//	cin.get();
-	//}
 	return Query_result(std::move(vec), docs);
 }
 
@@ -43,9 +40,18 @@ void Query::clean_member() {
 void Query::segment() {
 	transform(query_str.begin(), query_str.end(), query_str.begin(), tolower);
 	vector<string> words_all;
+	
 	docs.jieba.Cut(query_str, words_all);
 	for_each(words_all.begin(), words_all.end(), [this](const string &word)
-			{ if (Documents::is_not_stop_word(word)) ++query_words[word]; });
+			 {
+				 if (Documents::is_not_stop_word(word)) {
+					 if (docs.synonym.find(word) != docs.synonym.end())
+						 ++query_words[docs.synonym[word]];
+					 else
+						 ++query_words[word];
+				 }
+
+			 });
 }
 
 void Query::calculate_tfidf_sparse_vec() {
@@ -106,32 +112,39 @@ void Query::calculate_title_similarity() {
 			if (docs.title_word_set[i].find(p.first) != docs.title_word_set[i].end())
 				++mm;
 		query_title_set_similarity[i] = (double)mm / query_words.size();
-		/*for (const auto &p : query_words) {
-			auto it = docs.tf[i].find(p.first);
-			if (it == docs.tf[i].end()) {
-				query_title_set_similarity[i] -= 10;
-			} else {
-				if (it->second < 2)query_title_set_similarity[i] -= 10;
-			}
-		}*/
 	}
 }
 
 void Query::calculate_doc_score() {
 	int n = docs.get_docs_num();
 	query_doc_score.resize(n);
+	doc_sort_score.resize(n);
+	double factor = 0.037, k = 1;
+
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
-		double score = query_doc_cos[i] + 
-					   TITLE_SIMILARITY_FACTOR * query_title_set_similarity[i];
+		double score;
+		if (docs.learn.find(query_id) == docs.learn.end() ||
+			docs.learn[query_id].find(docs.doc_names[i]) == docs.learn[query_id].end()) {
+			score = query_doc_cos[i] + factor * log(docs.doc_contents[i].size()) +
+					TITLE_SIMILARITY_FACTOR * query_title_set_similarity[i];
+		} else
+			score = 0;
 		query_doc_score[i] = { i, score };
+		doc_sort_score[i] = query_doc_cos[i]; // not use
 	}
+}
+
+void Query::get_first_n_docs(int n) {
+	using ty = decltype(query_doc_score)::const_reference;
+	auto sort_func = [](ty a, ty b) { return a.second > b.second; };
+	partial_sort(query_doc_score.begin(), query_doc_score.begin() + n, query_doc_score.end(), sort_func);
 }
 
 void Query::sort_first_n_docs(int n) {
 	using ty = decltype(query_doc_score)::const_reference;
-	auto sort_func = [](ty a, ty b) { return a.second > b.second; };
-	partial_sort(query_doc_score.begin(), query_doc_score.begin() + n, query_doc_score.end(), sort_func);
+	auto sort_func = [this](ty a, ty b) { return doc_sort_score[a.first] > doc_sort_score[b.first]; };
+	sort(query_doc_score.begin(), query_doc_score.begin() + n, sort_func);
 }
 
 double Query::get_cos(const Documents::sparse_vector_type &vec1,
@@ -154,12 +167,23 @@ double Query::get_cos(const Documents::sparse_vector_type &vec_doc,
 }
 
 void Query::try_query_match(list<int> &rank_vec, int nn) {
+	string str1, str2;
+	auto pos = query_str.find('+');
+	if (pos != string::npos) {
+		cout << "\t发现分隔符，分割查找" << endl;
+		str1 = query_str.substr(0, pos);
+		str2 = query_str.substr(pos + 1);
+	} else {
+		str1 = query_str;
+	}
 	int n = docs.get_docs_num();
 	vector<pair<double, int>> v;
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
-		if (docs.doc_titles[i].find(query_str) != string::npos ||
-			docs.doc_contents[i].find(query_str) != string::npos) {
+		if (docs.doc_titles[i].find(str1) != string::npos &&
+			(str2.empty() || docs.doc_titles[i].find(str2) != string::npos) ||
+			docs.doc_contents[i].find(str1) != string::npos &&
+			(str2.empty() || docs.doc_contents[i].find(str2) != string::npos)) {
 				#pragma omp critical
 				v.emplace_back(-query_doc_score[i].second, i);
 		}

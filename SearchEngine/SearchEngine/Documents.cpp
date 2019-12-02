@@ -21,6 +21,12 @@ constexpr int Documents::URL_FACTOR;
 
 std::unordered_set<std::string> Documents::stop_words;
 
+std::map<std::string, std::string> Documents::synonym;
+
+std::map<std::string, std::set<std::string>> Documents::learn;
+
+std::set<std::string> Documents::error_words;
+
 cppjieba::Jieba Documents::jieba(DICT_PATH,
 								 HMM_PATH,
 								 USER_DICT_PATH,
@@ -44,6 +50,40 @@ void Documents::set_stop_words(const std::string &stop_words_file) {
 #endif
 }
 
+void Documents::set_synonym(const std::string &synonym_file) {
+	ifstream infile(synonym_file);
+	if (infile.fail())
+		throw runtime_error("cannot open file " + synonym_file);
+	string line;
+	while (getline(infile, line)) {
+		istringstream iss(line);
+		string s, w;
+		iss >> s;
+		while (iss >> w) synonym[std::move(w)] = s;
+	}
+}
+
+void Documents::set_error_words(const std::string err_file) {
+	ifstream infile(err_file);
+	if (infile.fail())
+		throw runtime_error("cannot open file " + err_file);
+	istream_iterator<string> it(infile), eof;
+	copy(it, eof, inserter(error_words, error_words.begin()));
+}
+
+void Documents::set_learn(const std::string learn_file) {
+	ifstream infile(learn_file);
+	if (infile.fail())
+		throw runtime_error("cannot open file " + learn_file);
+	string line;
+	while (getline(infile, line)) {
+		istringstream iss(line);
+		string s, w;
+		iss >> s;
+		while (iss >> w) learn[s].insert(std::move(w));
+	}
+}
+
 vector<string> Documents::get_segmentation(const string &sentence) {
 	// 使用 jieba 提取关键词
 		/*const size_t topk = 20;
@@ -61,6 +101,14 @@ vector<string> Documents::get_segmentation(const string &sentence) {
 	//cout << String_convert::utf8_to_string(limonp::Join
 	//		(words_content.begin(), words_content.end(), "/")) << endl;	
 
+	// 处理近义词
+	for_each(words_all.begin(), words_all.end(), [](string &s) {
+		if (synonym.find(s) != synonym.end()) {
+			/*cout << String_convert::utf8_to_string(s) << " -> "
+				<< String_convert::utf8_to_string(synonym[s]) << endl;*/
+			s = synonym[s];
+		}
+			 });
 	return words_all;
 }
 
@@ -90,7 +138,7 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 	doc_titles.resize(n);
 	doc_urls.resize(n);
 	doc_contents.resize(n);
-	
+
 	// 统计 tf df
 #ifdef DEBUG_PRINT
 	std::cout << "\treading documents   0%%" << flush;
@@ -100,15 +148,18 @@ void Documents::calculate(vector<vector<string>> &&vec) {
 #endif
 	#pragma omp parallel for
 	for (int i = 0; i < n; ++i) {
+		if (error_words.find(vec[i][0]) != error_words.end()) {
+			vec[i][1] = "";
+			vec[i][2] = "";
+			vec[i][3] = "";
+		}
 		const string &doc_id = strlower(vec[i][0]);
 		const string &url = strlower(vec[i][1]);
 		const string &title = strlower(vec[i][2]);
 		string &content = strlower(vec[i][3]);
-
 		vector<string> words_content = get_segmentation(content);
 		vector<string> words_title = get_segmentation(title);
 		vector<string> words_url = get_segmentation(url);
-		
 
 		// 统计 tf df
 		for (const string &word : words_content) {
@@ -216,7 +267,7 @@ ostream &Documents::print_doc_info(const string &doc_id, int n /*= 12*/, ostream
 			<< String_convert::utf8_to_string(doc_contents[idx]) << "\n"
 			<< "-----------------------------------------------------------\n"
 			<< "tf-idf 信息：\n";
-
+		
 		const auto &indx = tf_idf[idx].first;
 		const auto &x = tf_idf[idx].second;
 		vector<pair<double, int>> v;

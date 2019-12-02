@@ -4,9 +4,15 @@
 #include <iostream>
 using namespace std;
 
+#if 0
 constexpr auto QUERYS_FILE = "data_querys.csv";
 constexpr auto DOCS_FILE = "data_docs.csv";
+constexpr auto RESULT_FILE = "data_submission.csv";
+#else
+constexpr auto QUERYS_FILE = "test_querys.csv";
+constexpr auto DOCS_FILE = "test_docs.csv";
 constexpr auto RESULT_FILE = "submission.csv";
+#endif
 
 
 //#define TEST
@@ -21,8 +27,11 @@ int main() {
 		auto eit = unique(v.begin(), v.end());
 		v.erase(eit, v.end());
 
-		cout << "setting stop words ..." << endl;
+		cout << "setting stop words and synonym ..." << endl;
 		docs.set_stop_words("../dict/stop_words.utf8");
+		docs.set_synonym("../dict/synonym.utf8");
+		docs.set_error_words("../dict/error_words.utf8");
+		docs.set_learn("../dict/learn.utf8");
 
 		cout << "calculating tf-idf ..." << endl;
 		docs.calculate(std::move(v));
@@ -54,7 +63,7 @@ int main() {
 		ostringstream oss;
 		for (const auto &vec : v) {
 			string query_id = vec[1].substr(vec[1].find('q'));
-			q.query(vec[0]).print_csv(oss, std::move(query_id));
+			q.query(vec[0], query_id).print_csv(oss, std::move(query_id));
 		}
 		
 		cout << "writing result" << endl;

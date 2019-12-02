@@ -12,14 +12,14 @@ public:
 	Query(const Documents &documents) : docs(documents) {}
 
 	// str 为问题字符串，n 为需要多少个结果，返回文档 id
-	Query_result query(const std::string &str, int n = 20) 
-					{ query_str = str; return do_query(n); }
-	Query_result query(std::string &&str, int n = 20)
-					{ query_str = std::move(str); return do_query(n); }
+	Query_result query(const std::string &str, const std::string &qid = "", int n = 20) 
+					{ query_id = qid; query_str = str; return do_query(n); }
+	Query_result query(std::string &&str, const std::string &qid = "", int n = 20)
+					{ query_id = qid; query_str = std::move(str); return do_query(n); }
 
 private:
 	static constexpr double TITLE_SIMILARITY_FACTOR = 1;		// tfidf的cos值系数为1，和这个线性相加
-	static constexpr double TFIDF_ERROR_THRESHOULD = 0.55;		// value 低于这个值的超过 n/2 则进行其他处理
+	static constexpr double TFIDF_ERROR_THRESHOULD = 1.2;		// value 低于这个值的超过 n/2 则进行其他处理
 
 	Query_result do_query(int n);	// 进行查询工作，按顺序调用以下函数
 
@@ -30,6 +30,7 @@ private:
 	void calculate_query_docs_cos();		// 根据 query_tfidf_vec 和 docs 计算所有角度
 	void calculate_title_similarity();		// 根据集合交集判断相似度
 	void calculate_doc_score();				// 根据以上各种得分计算综合得分
+	void get_first_n_docs(int n);			// 获得前 n 篇相关文档
 	void sort_first_n_docs(int n);			// 排序前 n 篇相关文档
 
 	double get_cos(const Documents::sparse_vector_type &vec1, 
@@ -41,13 +42,15 @@ private:
 
 	const Documents &docs;
 	int next_word_id_not_use = 0;
+	std::string query_id;
 	std::string query_str;
 	std::map<std::string, int> query_words;		// 词，频率 tf
 	Documents::sparse_vector_type query_tfidf_sparse_vec;
 	std::unique_ptr<double[]> query_tfidf_full_vec;
 	double query_tfidf_full_vec_nrm2 = 0;
 	std::vector<double> query_doc_cos;		// doc_id，doc_cos_value 的 pair
-	std::vector<double> query_title_set_similarity;	// doc_id，doc_cos_value 的 pair
+	std::vector<double> doc_sort_score;		// doc_id，用于排序的score 的 pair
+	std::vector<double> query_title_set_similarity;	// doc_id，title相似性 的 pair
 	std::vector<std::pair<int, double>> query_doc_score;	// doc_id，得分的 pair
 
 	// 特殊处理

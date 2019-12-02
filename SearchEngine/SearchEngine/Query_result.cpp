@@ -16,7 +16,10 @@ std::ostream &Query_result::print_csv(std::ostream &os, const std::string &query
 	//	std::cerr << "err" << std::endl; std::cin.get();
 	//}
 	for (int id : docs_idx) {
-		os << query_id << "," << docs.doc_names[id] << "\n";
+		if (docs.learn.find(docs.doc_names[id]) == docs.learn.end())
+			os << query_id << "," << docs.doc_names[id] << "\n";
+		else
+			os << query_id << "," << docs.learn[docs.doc_names[id]] << "\n";
 	}
 	return os;
 }
