@@ -82,10 +82,10 @@ SearchEngine 项目：
 
 ```c++
 static void read(const std::string &file_name, 
-				 int cols, 
-				 std::vector<std::vector<std::string>> &vec);
+                 int cols, 
+                 std::vector<std::vector<std::string>> &vec);
 static void write(const std::string &file_name, 
-				  const std::vector<std::vector<std::string>> &vec);
+                  const std::vector<std::vector<std::string>> &vec);
 ```
 
 
@@ -106,8 +106,7 @@ static std::string utf8_to_string(const std::string &str);
 比较重要的接口如下：
 
 ```c++
-using sparse_vector_type = std::pair<std::vector<int>,	
-									 std::vector<double>>;	
+using sparse_vector_type = std::pair<std::vector<int>, std::vector<double>>;
 void calculate(std::vector<std::vector<std::string>> &&doc_vec);
 const sparse_vector_type &get_doc_sparse_tfidf_vec(int doc_id) const { ... }
 double get_doc_sparse_tfidf_vec_nrm2(int doc_id) const { ... }
